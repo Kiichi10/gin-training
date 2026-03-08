@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ふうふうトレイン 🚂</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    overflow: hidden;
+    touch-action: none;
+    font-family: 'Hiragino Maru Gothic ProN', 'Rounded Mplus 1c', sans-serif;
+    height: 100vh;
+    width: 100vw;
+    background: #000;
+  }
+
+  #start-screen {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #FFD700, #FF8C00);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    gap: 16px;
+  }
+
+  #start-screen h1 {
+    font-size: clamp(2rem, 8vw, 4rem);
+    color: white;
+    text-shadow: 3px 3px 0 #cc6600;
+  }
+
+  #start-screen .train-emoji {
+    font-size: clamp(4rem, 15vw, 8rem);
+    animation: bounce 1s ease-in-out infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+  }
+
+  .btn {
+    font-size: clamp(1.5rem, 5vw, 2.5rem);
+    padding: 15px 50px;
+    border: none;
+    border-radius: 50px;
+    background: white;
+    color: #FF8C00;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 6px 0 #ccc;
+    transition: transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 #ccc;
+  }
+
+  #game-canvas {
+    position: fixed;
+    inset: 0;
+  }
+
+  /* HUD */
+  #hud {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  #stars {
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+  }
+
+  #passengers {
+    font-size: clamp(1rem, 3vw, 1.5rem);
+    color: white;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+    font-weight: bold;
+  }
+
+  #distance {
+    font-size: clamp(1rem, 3vw, 1.5rem);
+    color: white;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+    font-weight: bold;
+  }
+
+  /* 下部UI */
+  #blow-indicator {
+    position: fixed;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  #blow-label {
+    font-size: clamp(1.2rem, 4vw, 1.8rem);
+    color: white;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+    font-weight: bold;
+  }
+
+  #blow-meter {
+    width: clamp(200px, 60vw, 400px);
+    height: 24px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 6px;
+    border: 3px solid rgba(255,255,255,0.7);
+  }
+
+  #blow-meter-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #FFD700, #FF4500);
+    border-radius: 9px;
+    transition: width 0.1s;
+  }
+
+  /* 踏切警告 */
+  #crossing-warning {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: clamp(1.5rem, 5vw, 2.5rem);
+    color: #FF0000;
+    font-weight: bold;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+    z-index: 15;
+    display: none;
+    animation: flash 0.4s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+
+  @keyframes flash {
+    from { opacity: 1; }
+    to { opacity: 0.3; }
+  }
+
+  /* ゴール画面 */
+  #goal-screen {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    gap: 15px;
+  }
+
+  #goal-screen.show { display: flex; }
+
+  #goal-screen h2 {
+    font-size: clamp(2rem, 8vw, 4rem);
+    color: #FFD700;
+    text-shadow: 3px 3px 0 #cc6600;
+    animation: bounce 0.6s ease-in-out infinite;
+  }
+
+  .stars-display {
+    font-size: clamp(3rem, 10vw, 6rem);
+  }
+
+  #goal-passengers {
+    font-size: clamp(1.2rem, 4vw, 2rem);
+    color: white;
+  }
+
+  #retry-btn {
+    font-size: clamp(1.2rem, 4vw, 2rem);
+    padding: 12px 40px;
+    border: none;
+    border-radius: 50px;
+    background: #FFD700;
+    color: #333;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 6px 0 #b8960f;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #retry-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 #b8960f;
+  }
+
+  /* ターボエフェクト */
+  #turbo-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(255,215,0,0.15) 100%);
+    transition: opacity 0.3s;
+  }
+
+  #turbo-overlay.active {
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+
+<!-- スタート画面 -->
+<div id="start-screen">
+  <div class="train-emoji">🚂</div>
+  <h1>ふうふうトレイン</h1>
+  <p style="color:white; font-size:clamp(1rem,3vw,1.4rem); text-align:center; line-height:1.8">
+    ふーっ と いきを ふきかけて<br>でんしゃを はしらせよう！<br>
+    <span style="font-size:0.85em">つよく ふくと ターボだ！💨</span>
+  </p>
+  <button class="btn" id="start-btn">スタート！</button>
+</div>
+
+<!-- ゲーム画面 -->
+<canvas id="game-canvas"></canvas>
+<div id="turbo-overlay"></div>
+
+<div id="hud">
+  <div id="stars"></div>
+  <div id="passengers"></div>
+  <div id="distance"></div>
+</div>
+
+<div id="crossing-warning">🚧 ふくのを とめて！🚧</div>
+
+<div id="blow-indicator">
+  <div id="blow-label">🌬️ ふーっ と ふいてね！</div>
+  <div id="blow-meter">
+    <div id="blow-meter-fill"></div>
+  </div>
+</div>
+
+<!-- ゴール画面 -->
+<div id="goal-screen">
+  <h2 id="goal-message">🎉 ゴール！</h2>
+  <div class="stars-display" id="goal-stars"></div>
+  <div id="goal-passengers"></div>
+  <button id="retry-btn">もういっかい！</button>
+</div>
+
+<script>
+// ===== 音声合成 =====
+const AudioEngine = {
+  ctx: null,
+  init() {
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  },
+  resume() {
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  },
+  // 汽笛
+  whistle() {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(600, this.ctx.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+    osc.connect(gain).connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.5);
+  },
+  // シュッシュッポッポ
+  chugga(speed) {
+    if (!this.ctx || speed < 0.5) return;
+    const t = this.ctx.currentTime;
+    const noise = this.ctx.createBufferSource();
+    const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.08, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.06;
+    noise.buffer = buf;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(Math.min(speed * 0.02, 0.1), t);
+    noise.connect(gain).connect(this.ctx.destination);
+    noise.start(t);
+  },
+  // スター獲得
+  starCollect() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [523, 659, 784].forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.12, t + i * 0.1);
+      gain.gain.linearRampToValueAtTime(0, t + i * 0.1 + 0.2);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start(t + i * 0.1);
+      osc.stop(t + i * 0.1 + 0.2);
+    });
+  },
+  // 乗客乗車音
+  boarding() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [440, 554, 660].forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.08, t + i * 0.15);
+      gain.gain.linearRampToValueAtTime(0, t + i * 0.15 + 0.25);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start(t + i * 0.15);
+      osc.stop(t + i * 0.15 + 0.25);
+    });
+  },
+  // 踏切警報
+  crossingBell() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = 1000;
+    gain.gain.setValueAtTime(0.06, t);
+    gain.gain.linearRampToValueAtTime(0, t + 0.15);
+    osc.connect(gain).connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.15);
+  },
+  // ぶつかった
+  crash() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(200, t);
+    osc.frequency.linearRampToValueAtTime(50, t + 0.3);
+    gain.gain.setValueAtTime(0.15, t);
+    gain.gain.linearRampToValueAtTime(0, t + 0.4);
+    osc.connect(gain).connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.4);
+  },
+  // ターボ音
+  turbo() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(300, t);
+    osc.frequency.linearRampToValueAtTime(1200, t + 0.3);
+    gain.gain.setValueAtTime(0.06, t);
+    gain.gain.linearRampToValueAtTime(0, t + 0.4);
+    osc.connect(gain).connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.4);
+  },
+  // ゴールファンファーレ
+  fanfare() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    [523, 659, 784, 1047].forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.12, t + i * 0.2);
+      gain.gain.linearRampToValueAtTime(0.05, t + i * 0.2 + 0.4);
+      gain.gain.linearRampToValueAtTime(0, t + i * 0.2 + 0.6);
+      osc.connect(gain).connect(this.ctx.destination);
+      osc.start(t + i * 0.2);
+      osc.stop(t + i * 0.2 + 0.6);
+    });
+  }
+};
+
+// ===== 設定 =====
+const GOAL_DISTANCE = 800;
+const BLOW_THRESHOLD = 0.06;
+const TURBO_THRESHOLD = 0.2;
+const SPEED_MULTIPLIER = 3;
+const ANIMALS = ['🐻', '🐰', '🐸', '🐱', '🐶', '🐼', '🦊', '🐨'];
+
+// ===== 状態 =====
+let gameStarted = false;
+let distance = 0;
+let speed = 0;
+let starsCollected = 0;
+let blowLevel = 0;
+let audioContext, analyser, dataArray;
+let animationId;
+let micAvailable = false;
+let touchBlowing = false;
+let turboActive = false;
+let turboTimer = 0;
+let passengers = [];
+let crashCooldown = 0;
+let lastChuggaTime = 0;
+let crossingWarningActive = false;
+let particles = [];
+
+// ===== DOM =====
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const startScreen = document.getElementById('start-screen');
+const startBtn = document.getElementById('start-btn');
+const blowMeterFill = document.getElementById('blow-meter-fill');
+const blowLabel = document.getElementById('blow-label');
+const distanceEl = document.getElementById('distance');
+const starsEl = document.getElementById('stars');
+const passengersEl = document.getElementById('passengers');
+const goalScreen = document.getElementById('goal-screen');
+const goalStars = document.getElementById('goal-stars');
+const goalMessage = document.getElementById('goal-message');
+const goalPassengers = document.getElementById('goal-passengers');
+const retryBtn = document.getElementById('retry-btn');
+const turboOverlay = document.getElementById('turbo-overlay');
+const crossingWarning = document.getElementById('crossing-warning');
+
+// ===== キャンバスサイズ =====
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ===== 景色オブジェクト =====
+let sceneryObjects = [];
+const clouds = [];
+
+function initScenery() {
+  sceneryObjects = [];
+  clouds.length = 0;
+  particles = [];
+  passengers = [];
+
+  const totalDist = GOAL_DISTANCE * 8;
+
+  // 木
+  for (let i = 0; i < 40; i++) {
+    sceneryObjects.push({
+      type: 'tree',
+      x: 200 + Math.random() * totalDist,
+      size: 0.5 + Math.random() * 0.8,
+      treeType: Math.floor(Math.random() * 3), // 木の種類
+    });
+  }
+
+  // 建物
+  for (let i = 0; i < 12; i++) {
+    sceneryObjects.push({
+      type: 'building',
+      x: 400 + Math.random() * totalDist,
+      height: 50 + Math.random() * 90,
+      width: 35 + Math.random() * 35,
+      color: ['#E74C3C', '#3498DB', '#F39C12', '#9B59B6', '#1ABC9C', '#E67E22'][Math.floor(Math.random() * 6)],
+    });
+  }
+
+  // 動物乗車ポイント（3箇所）
+  const animalPoints = [200, 450, 650];
+  animalPoints.forEach((d, i) => {
+    sceneryObjects.push({
+      type: 'animal-stop',
+      x: d * 8,
+      animal: ANIMALS[Math.floor(Math.random() * ANIMALS.length)],
+      collected: false,
+      platformColor: ['#DEB887', '#D2B48C', '#C4A882'][i],
+    });
+  });
+
+  // 踏切（2箇所）— 息を止めないとぶつかる
+  [350, 600].forEach(d => {
+    sceneryObjects.push({
+      type: 'crossing',
+      x: d * 8,
+      gateAngle: 0, // 0=閉 90=開
+      passed: false,
+    });
+  });
+
+  // スター
+  [250, 500, 750].forEach(d => {
+    sceneryObjects.push({
+      type: 'star',
+      x: d * 8,
+      collected: false,
+    });
+  });
+
+  // ゴール駅
+  sceneryObjects.push({
+    type: 'station',
+    x: totalDist - 100,
+  });
+
+  // 雲
+  for (let i = 0; i < 8; i++) {
+    clouds.push({
+      x: Math.random() * canvas.width,
+      y: 20 + Math.random() * canvas.height * 0.2,
+      speed: 0.2 + Math.random() * 0.5,
+      size: 0.6 + Math.random() * 0.8,
+    });
+  }
+}
+
+// ===== パーティクル =====
+function spawnParticles(x, y, emoji, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 6,
+      vy: -Math.random() * 5 - 2,
+      life: 1.0,
+      emoji,
+      size: 20 + Math.random() * 15,
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15; // 重力
+    p.life -= 0.02;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.font = `${p.size}px serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(p.emoji, p.x, p.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ===== 描画 =====
+function drawSky() {
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.6);
+  gradient.addColorStop(0, '#87CEEB');
+  gradient.addColorStop(1, '#B0E0FF');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height * 0.6);
+
+  // 太陽
+  const sunPulse = Math.sin(Date.now() / 1000) * 3;
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.arc(canvas.width - 70, 70, 35 + sunPulse, 0, Math.PI * 2);
+  ctx.fill();
+  // 光条
+  ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 8; i++) {
+    const angle = (Date.now() / 3000 + i * Math.PI / 4);
+    ctx.beginPath();
+    ctx.moveTo(canvas.width - 70 + Math.cos(angle) * 42, 70 + Math.sin(angle) * 42);
+    ctx.lineTo(canvas.width - 70 + Math.cos(angle) * 55, 70 + Math.sin(angle) * 55);
+    ctx.stroke();
+  }
+}
+
+function drawGround() {
+  const groundY = canvas.height * 0.6;
+
+  // 草原
+  const gradient = ctx.createLinearGradient(0, groundY, 0, canvas.height);
+  gradient.addColorStop(0, '#90EE90');
+  gradient.addColorStop(0.3, '#228B22');
+  gradient.addColorStop(1, '#1a6b1a');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, groundY, canvas.width, canvas.height * 0.4);
+
+  // 線路敷石
+  const trackY = canvas.height * 0.72;
+  ctx.fillStyle = '#A0917B';
+  ctx.fillRect(0, trackY - 10, canvas.width, 22);
+
+  // レール
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(0, trackY - 6, canvas.width, 3);
+  ctx.fillRect(0, trackY + 5, canvas.width, 3);
+
+  // 枕木
+  ctx.fillStyle = '#654321';
+  const tieOffset = (distance * 8) % 25;
+  for (let x = -tieOffset; x < canvas.width + 25; x += 25) {
+    ctx.fillRect(x, trackY - 9, 5, 20);
+  }
+}
+
+function drawClouds() {
+  for (const cloud of clouds) {
+    const s = cloud.size;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.beginPath();
+    ctx.arc(cloud.x, cloud.y, 25 * s, 0, Math.PI * 2);
+    ctx.arc(cloud.x + 25 * s, cloud.y - 5 * s, 20 * s, 0, Math.PI * 2);
+    ctx.arc(cloud.x - 20 * s, cloud.y + 2 * s, 18 * s, 0, Math.PI * 2);
+    ctx.arc(cloud.x + 10 * s, cloud.y + 5 * s, 15 * s, 0, Math.PI * 2);
+    ctx.fill();
+    cloud.x -= cloud.speed + speed * 0.1;
+    if (cloud.x < -80) cloud.x = canvas.width + 80;
+  }
+}
+
+function drawScenery() {
+  const cameraX = distance * 8;
+  const groundY = canvas.height * 0.6;
+  const trackY = canvas.height * 0.72;
+  const trainScreenX = canvas.width * 0.25;
+
+  for (const obj of sceneryObjects) {
+    const screenX = obj.x - cameraX + trainScreenX;
+    if (screenX < -250 || screenX > canvas.width + 250) continue;
+
+    if (obj.type === 'tree') {
+      const s = obj.size;
+      ctx.fillStyle = '#8B4513';
+      ctx.fillRect(screenX - 4 * s, groundY - 25 * s, 8 * s, 25 * s);
+
+      if (obj.treeType === 0) {
+        // 丸い木
+        ctx.fillStyle = '#228B22';
+        ctx.beginPath();
+        ctx.arc(screenX, groundY - 35 * s, 18 * s, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (obj.treeType === 1) {
+        // 三角の木（杉）
+        ctx.fillStyle = '#2E7D32';
+        ctx.beginPath();
+        ctx.moveTo(screenX, groundY - 55 * s);
+        ctx.lineTo(screenX + 15 * s, groundY - 20 * s);
+        ctx.lineTo(screenX - 15 * s, groundY - 20 * s);
+        ctx.fill();
+      } else {
+        // もふもふの木
+        ctx.fillStyle = '#43A047';
+        ctx.beginPath();
+        ctx.arc(screenX - 6 * s, groundY - 30 * s, 14 * s, 0, Math.PI * 2);
+        ctx.arc(screenX + 6 * s, groundY - 30 * s, 14 * s, 0, Math.PI * 2);
+        ctx.arc(screenX, groundY - 40 * s, 14 * s, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    if (obj.type === 'building') {
+      ctx.fillStyle = obj.color;
+      ctx.fillRect(screenX, groundY - obj.height, obj.width, obj.height);
+      ctx.fillStyle = '#FFFACD';
+      for (let r = 0; r < Math.floor(obj.height / 25); r++) {
+        for (let c = 0; c < Math.floor(obj.width / 15); c++) {
+          ctx.fillRect(screenX + 5 + c * 15, groundY - obj.height + 8 + r * 25, 8, 12);
+        }
+      }
+      ctx.fillStyle = '#555';
+      ctx.fillRect(screenX - 2, groundY - obj.height - 4, obj.width + 4, 6);
+    }
+
+    if (obj.type === 'animal-stop') {
+      // プラットフォーム
+      ctx.fillStyle = obj.platformColor;
+      ctx.fillRect(screenX - 30, groundY - 8, 60, 8);
+      // 屋根
+      ctx.fillStyle = '#8B4513';
+      ctx.fillRect(screenX - 25, groundY - 35, 50, 5);
+      ctx.fillRect(screenX - 5, groundY - 35, 3, 27);
+      ctx.fillRect(screenX + 15, groundY - 35, 3, 27);
+
+      if (!obj.collected) {
+        // 動物が待ってる（ぴょこぴょこ）
+        const hop = Math.sin(Date.now() / 300) * 5;
+        ctx.font = '35px serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(obj.animal, screenX, groundY - 12 + hop);
+
+        // 当たり判定
+        if (Math.abs(screenX - trainScreenX) < 50 && speed > 0.3) {
+          obj.collected = true;
+          passengers.push(obj.animal);
+          updatePassengers();
+          AudioEngine.boarding();
+          spawnParticles(trainScreenX, trackY - 50, '🎵', 5);
+          spawnParticles(trainScreenX, trackY - 50, obj.animal, 3);
+        }
+      } else {
+        // 乗り済みマーク
+        ctx.font = '14px sans-serif';
+        ctx.fillStyle = '#999';
+        ctx.textAlign = 'center';
+        ctx.fillText('のったよ！', screenX, groundY - 15);
+      }
+    }
+
+    if (obj.type === 'crossing') {
+      // 踏切
+      const nearTrain = Math.abs(screenX - trainScreenX) < 200;
+      const veryNear = Math.abs(screenX - trainScreenX) < 80;
+
+      // ポール
+      ctx.fillStyle = '#333';
+      ctx.fillRect(screenX - 2, groundY - 70, 4, 70);
+
+      // 遮断機（近づくと降りてくる）
+      if (!obj.passed) {
+        const gateDown = nearTrain ? 1 : 0;
+        ctx.save();
+        ctx.translate(screenX, groundY - 65);
+        ctx.rotate(-gateDown * Math.PI * 0.45);
+        // バー
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(0, -3, 60, 6);
+        ctx.fillStyle = '#333';
+        for (let b = 10; b < 60; b += 15) {
+          ctx.fillRect(b, -3, 7, 6);
+        }
+        ctx.restore();
+
+        // 警告灯
+        if (nearTrain) {
+          const blink = Math.sin(Date.now() / 150) > 0;
+          ctx.fillStyle = blink ? '#FF0000' : '#660000';
+          ctx.beginPath();
+          ctx.arc(screenX - 8, groundY - 72, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = blink ? '#660000' : '#FF0000';
+          ctx.beginPath();
+          ctx.arc(screenX + 8, groundY - 72, 6, 0, Math.PI * 2);
+          ctx.fill();
+
+          // 踏切音
+          if (Date.now() - obj.lastBell > 500) {
+            AudioEngine.crossingBell();
+            obj.lastBell = Date.now();
+          }
+
+          // 警告表示
+          if (!crossingWarningActive && !obj.passed) {
+            crossingWarning.style.display = 'block';
+            crossingWarningActive = true;
+          }
+        }
+
+        // 衝突判定
+        if (veryNear && speed > 1.5 && !obj.passed) {
+          // ぶつかった！
+          AudioEngine.crash();
+          speed = 0;
+          crashCooldown = 60;
+          spawnParticles(trainScreenX, trackY - 30, '💥', 8);
+          spawnParticles(trainScreenX, trackY - 30, '😵', 3);
+          obj.passed = true;
+          crossingWarning.style.display = 'none';
+          crossingWarningActive = false;
+        }
+
+        // 低速で通過成功
+        if (veryNear && speed <= 1.5 && speed > 0 && !obj.passed) {
+          obj.passed = true;
+          spawnParticles(trainScreenX, trackY - 30, '✨', 6);
+          crossingWarning.style.display = 'none';
+          crossingWarningActive = false;
+        }
+      }
+
+      if (!nearTrain && crossingWarningActive) {
+        crossingWarning.style.display = 'none';
+        crossingWarningActive = false;
+      }
+
+      if (!obj.lastBell) obj.lastBell = 0;
+    }
+
+    if (obj.type === 'star' && !obj.collected) {
+      const pulse = Math.sin(Date.now() / 200) * 5;
+      const glow = Math.sin(Date.now() / 300) * 0.3 + 0.7;
+      ctx.globalAlpha = glow;
+      ctx.font = `${35 + pulse}px serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('⭐', screenX, trackY - 45);
+      ctx.globalAlpha = 1;
+
+      if (Math.abs(screenX - trainScreenX) < 45) {
+        obj.collected = true;
+        starsCollected++;
+        updateStars();
+        AudioEngine.starCollect();
+        spawnParticles(trainScreenX, trackY - 50, '✨', 10);
+        spawnParticles(trainScreenX, trackY - 50, '⭐', 3);
+      }
+    }
+
+    if (obj.type === 'station') {
+      // 駅舎
+      ctx.fillStyle = '#DEB887';
+      ctx.fillRect(screenX, groundY - 65, 110, 65);
+      // 屋根
+      ctx.fillStyle = '#8B0000';
+      ctx.beginPath();
+      ctx.moveTo(screenX - 10, groundY - 65);
+      ctx.lineTo(screenX + 55, groundY - 95);
+      ctx.lineTo(screenX + 120, groundY - 65);
+      ctx.fill();
+      // 看板
+      ctx.fillStyle = 'white';
+      ctx.fillRect(screenX + 15, groundY - 55, 80, 24);
+      ctx.fillStyle = '#333';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('ゴールえき', screenX + 55, groundY - 38);
+      // 旗
+      ctx.font = '30px serif';
+      ctx.fillText('🚩', screenX + 55, groundY - 97);
+      // 時計
+      ctx.font = '20px serif';
+      ctx.fillText('🕐', screenX + 90, groundY - 70);
+    }
+  }
+}
+
+function drawTrain() {
+  const trackY = canvas.height * 0.72;
+  const tx = canvas.width * 0.25;
+  const ty = trackY - 28;
+  const shake = speed > 0 ? Math.sin(Date.now() / 50) * Math.min(speed * 0.5, 2) : 0;
+
+  ctx.save();
+  ctx.translate(tx, ty + shake);
+
+  // ===== 客車（乗客がいる場合）=====
+  if (passengers.length > 0) {
+    const carX = -90;
+    // 連結器
+    ctx.fillStyle = '#555';
+    ctx.fillRect(-35, 0, 10, 4);
+    // 客車
+    ctx.fillStyle = '#2E86C1';
+    ctx.fillRect(carX, -20, 55, 28);
+    // 窓
+    ctx.fillStyle = '#AED6F1';
+    ctx.fillRect(carX + 5, -16, 12, 10);
+    ctx.fillRect(carX + 22, -16, 12, 10);
+    ctx.fillRect(carX + 39, -16, 12, 10);
+    // 客車車輪
+    ctx.fillStyle = '#333';
+    const wr = (distance * 8) % (Math.PI * 2);
+    for (const wx of [carX + 10, carX + 40]) {
+      ctx.beginPath();
+      ctx.arc(wx, 12, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // 乗客表示（窓の中）
+    ctx.font = '10px serif';
+    ctx.textAlign = 'center';
+    passengers.slice(0, 3).forEach((p, i) => {
+      ctx.fillText(p, carX + 11 + i * 17, -9);
+    });
+  }
+
+  // ===== 煙 =====
+  if (speed > 0.5) {
+    const smokeCount = turboActive ? 8 : 4;
+    for (let i = 0; i < smokeCount; i++) {
+      const smokeX = -20 - i * 12 - Math.random() * 10;
+      const smokeY = -30 - i * 10 - Math.random() * 5;
+      const smokeSize = 6 + i * 4 + Math.random() * 3;
+      ctx.fillStyle = turboActive
+        ? `rgba(255, 200, 50, ${0.6 - i * 0.07})`
+        : `rgba(200, 200, 200, ${0.7 - i * 0.12})`;
+      ctx.beginPath();
+      ctx.arc(smokeX, smokeY, smokeSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ===== 機関車 =====
+  // ターボ時は金色
+  ctx.fillStyle = turboActive ? '#FFD700' : '#E74C3C';
+  ctx.fillRect(-30, -22, 70, 30);
+
+  // 運転台
+  ctx.fillStyle = turboActive ? '#DAA520' : '#C0392B';
+  ctx.fillRect(25, -35, 20, 15);
+
+  // 煙突
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-15, -35, 12, 15);
+  // 煙突の上の飾り
+  ctx.fillRect(-17, -38, 16, 4);
+
+  // 窓
+  ctx.fillStyle = '#AED6F1';
+  ctx.fillRect(28, -32, 14, 10);
+
+  // バンパー
+  ctx.fillStyle = '#555';
+  ctx.fillRect(40, -5, 5, 12);
+
+  // 車輪
+  ctx.fillStyle = '#333';
+  const wheelAngle = (distance * 30) % (Math.PI * 2);
+  for (const wx of [-15, 10, 30]) {
+    ctx.beginPath();
+    ctx.arc(wx, 12, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(wx + Math.cos(wheelAngle) * 6, 12 + Math.sin(wheelAngle) * 6);
+    ctx.lineTo(wx - Math.cos(wheelAngle) * 6, 12 - Math.sin(wheelAngle) * 6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(wx + Math.cos(wheelAngle + Math.PI/2) * 6, 12 + Math.sin(wheelAngle + Math.PI/2) * 6);
+    ctx.lineTo(wx - Math.cos(wheelAngle + Math.PI/2) * 6, 12 - Math.sin(wheelAngle + Math.PI/2) * 6);
+    ctx.stroke();
+  }
+
+  // ===== 顔 =====
+  // 目（白目）
+  ctx.fillStyle = 'white';
+  ctx.beginPath();
+  ctx.arc(36, -15, 7, 0, Math.PI * 2);
+  ctx.fill();
+  // 目（黒目 — 速度で大きさ変化）
+  const eyeSize = speed > 3 ? 4 : 3;
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.arc(37, -14, eyeSize, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ほっぺ
+  if (speed > 2) {
+    ctx.fillStyle = 'rgba(255, 150, 150, 0.5)';
+    ctx.beginPath();
+    ctx.arc(42, -8, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 口
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  if (crashCooldown > 0) {
+    // 😵
+    ctx.beginPath();
+    ctx.arc(36, -7, 4, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (turboActive) {
+    // 😆 大笑い
+    ctx.beginPath();
+    ctx.arc(36, -9, 6, 0, Math.PI);
+    ctx.fill();
+    ctx.stroke();
+  } else if (speed > 2) {
+    // 😊 笑顔
+    ctx.beginPath();
+    ctx.arc(36, -8, 5, 0, Math.PI);
+    ctx.stroke();
+  } else if (speed > 0.3) {
+    // 🙂 微笑み
+    ctx.beginPath();
+    ctx.arc(36, -8, 3, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+  } else {
+    // 😐 待ち
+    ctx.beginPath();
+    ctx.moveTo(33, -7);
+    ctx.lineTo(39, -7);
+    ctx.stroke();
+  }
+
+  // ターボ時のキラキラ
+  if (turboActive) {
+    ctx.font = '16px serif';
+    ctx.textAlign = 'center';
+    const sparkle = Date.now() % 400 < 200 ? '✨' : '💫';
+    ctx.fillText(sparkle, -25, -40);
+    ctx.fillText(sparkle, 45, -40);
+  }
+
+  ctx.restore();
+}
+
+// ===== 進行バー =====
+function drawProgressBar() {
+  const barY = canvas.height - 8;
+  const barWidth = canvas.width - 20;
+  const progress = distance / GOAL_DISTANCE;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillRect(10, barY, barWidth, 5);
+
+  ctx.fillStyle = '#FFD700';
+  ctx.fillRect(10, barY, barWidth * progress, 5);
+
+  // 電車アイコン
+  ctx.font = '14px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🚂', 10 + barWidth * progress, barY - 4);
+  ctx.fillText('🚩', 10 + barWidth - 2, barY - 4);
+}
+
+// ===== UI更新 =====
+function updateStars() {
+  let s = '';
+  for (let i = 0; i < 3; i++) s += i < starsCollected ? '⭐' : '☆';
+  starsEl.textContent = s;
+}
+
+function updateDistance() {
+  distanceEl.textContent = `${Math.floor(distance)}m`;
+}
+
+function updatePassengers() {
+  passengersEl.textContent = passengers.length > 0
+    ? `のってるよ: ${passengers.join('')}`
+    : '';
+}
+
+// ===== マイク入力 =====
+async function setupMicrophone() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    console.warn('getUserMedia not available');
+    return false;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioContext.createMediaStreamSource(stream);
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    return true;
+  } catch (e) {
+    console.error('マイクエラー:', e);
+    return false;
+  }
+}
+
+function getBlowLevel() {
+  if (!micAvailable && touchBlowing) return 0.25;
+  if (!analyser) return 0;
+  analyser.getByteTimeDomainData(dataArray);
+  let sum = 0;
+  for (let i = 0; i < dataArray.length; i++) {
+    const v = (dataArray[i] - 128) / 128;
+    sum += v * v;
+  }
+  return Math.sqrt(sum / dataArray.length);
+}
+
+// ===== ゲームループ =====
+function gameLoop() {
+  if (!gameStarted) return;
+
+  // クラッシュクールダウン
+  if (crashCooldown > 0) {
+    crashCooldown--;
+    if (crashCooldown === 0) {
+      blowLabel.textContent = micAvailable
+        ? '🌬️ もういちど ふこう！'
+        : '👆 もういちど おそう！';
+    }
+  }
+
+  // 息の検出
+  blowLevel = getBlowLevel();
+  const blowing = blowLevel > BLOW_THRESHOLD && crashCooldown === 0;
+
+  // ターボ判定
+  const wasTurbo = turboActive;
+  turboActive = blowLevel > TURBO_THRESHOLD && micAvailable;
+  if (turboActive && !wasTurbo) {
+    AudioEngine.turbo();
+  }
+  turboOverlay.classList.toggle('active', turboActive);
+
+  // 速度制御
+  if (blowing) {
+    const accel = turboActive ? 0.3 : 0.15;
+    const maxSpeed = turboActive ? 12 : 6;
+    speed = Math.min(speed + accel, maxSpeed);
+
+    if (turboActive) {
+      blowLabel.textContent = '🔥💨 ターボ！！すっごーい！！';
+    } else if (micAvailable) {
+      blowLabel.textContent = '🌬️💨 いいぞ！はしってる！';
+    } else {
+      blowLabel.textContent = '💨 はしってる！はしってる！';
+    }
+  } else {
+    speed = Math.max(speed - 0.06, 0);
+    if (speed < 0.1 && crashCooldown === 0) {
+      blowLabel.textContent = micAvailable
+        ? '🌬️ ふーっ と ふいてね！'
+        : '👆 がめんを おして はしらせよう！';
+    }
+  }
+
+  // シュッシュッポッポ音
+  if (speed > 0.5 && Date.now() - lastChuggaTime > Math.max(200 - speed * 15, 60)) {
+    AudioEngine.chugga(speed);
+    lastChuggaTime = Date.now();
+  }
+
+  // 距離更新
+  distance += speed * 0.05;
+  if (distance > GOAL_DISTANCE) distance = GOAL_DISTANCE;
+
+  // メーター更新
+  const meterPct = Math.min(blowLevel / 0.3 * 100, 100);
+  blowMeterFill.style.width = meterPct + '%';
+  blowMeterFill.style.background = turboActive
+    ? 'linear-gradient(90deg, #FF4500, #FF0000)'
+    : 'linear-gradient(90deg, #FFD700, #FF4500)';
+
+  // パーティクル更新
+  updateParticles();
+
+  // ターボ中のスピードライン的パーティクル
+  if (turboActive && Math.random() < 0.3) {
+    particles.push({
+      x: canvas.width + 10,
+      y: Math.random() * canvas.height,
+      vx: -15 - Math.random() * 10,
+      vy: 0,
+      life: 0.5,
+      emoji: '✨',
+      size: 12 + Math.random() * 8,
+    });
+  }
+
+  // 描画
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawSky();
+  drawClouds();
+  drawScenery();
+  drawGround();
+  drawTrain();
+  drawParticles();
+  drawProgressBar();
+
+  updateDistance();
+
+  // ゴール判定
+  if (distance >= GOAL_DISTANCE) {
+    showGoal();
+    return;
+  }
+
+  animationId = requestAnimationFrame(gameLoop);
+}
+
+function showGoal() {
+  gameStarted = false;
+  AudioEngine.fanfare();
+
+  let msg;
+  if (starsCollected === 3 && passengers.length === 3) {
+    msg = '🎉 かんぺき！！すごすぎ！！';
+  } else if (starsCollected === 3) {
+    msg = '🎉 パーフェクトスター！！';
+  } else if (passengers.length === 3) {
+    msg = '🎉 みんな のせたね！';
+  } else {
+    msg = '🎉 ゴール！やったね！';
+  }
+  goalMessage.textContent = msg;
+
+  let starText = '';
+  for (let i = 0; i < 3; i++) starText += i < starsCollected ? '⭐' : '☆';
+  goalStars.textContent = starText;
+
+  goalPassengers.textContent = passengers.length > 0
+    ? `のせたどうぶつ: ${passengers.join(' ')}`
+    : 'どうぶつを のせられなかったよ';
+
+  goalScreen.classList.add('show');
+
+  // ゴール花火
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => {
+      spawnParticles(
+        canvas.width * 0.2 + Math.random() * canvas.width * 0.6,
+        canvas.height * 0.3 + Math.random() * canvas.height * 0.2,
+        ['🎉', '🎊', '✨', '🌟', '💫'][i],
+        8
+      );
+    }, i * 300);
+  }
+  // ゴール後もパーティクル描画のため
+  function goalAnim() {
+    updateParticles();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawSky();
+    drawClouds();
+    drawScenery();
+    drawGround();
+    drawTrain();
+    drawParticles();
+    drawProgressBar();
+    if (goalScreen.classList.contains('show')) requestAnimationFrame(goalAnim);
+  }
+  goalAnim();
+}
+
+function resetGame() {
+  distance = 0;
+  speed = 0;
+  starsCollected = 0;
+  blowLevel = 0;
+  crashCooldown = 0;
+  turboActive = false;
+  crossingWarningActive = false;
+  crossingWarning.style.display = 'none';
+  turboOverlay.classList.remove('active');
+  updateStars();
+  updateDistance();
+  initScenery();
+  updatePassengers();
+  goalScreen.classList.remove('show');
+  gameStarted = true;
+  gameLoop();
+}
+
+// ===== イベント =====
+startBtn.addEventListener('click', async () => {
+  AudioEngine.init();
+  micAvailable = await setupMicrophone();
+
+  if (!micAvailable) {
+    blowLabel.textContent = '👆 がめんを おして はしらせよう！';
+  }
+
+  AudioEngine.whistle();
+  startScreen.style.display = 'none';
+  initScenery();
+  updateStars();
+  updateDistance();
+  updatePassengers();
+  gameStarted = true;
+  gameLoop();
+});
+
+retryBtn.addEventListener('click', () => {
+  AudioEngine.whistle();
+  resetGame();
+});
+
+// タッチフォールバック
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  touchBlowing = true;
+  AudioEngine.resume();
+});
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  touchBlowing = false;
+});
+canvas.addEventListener('touchcancel', () => { touchBlowing = false; });
+
+// マウスフォールバック
+canvas.addEventListener('mousedown', () => { touchBlowing = true; });
+canvas.addEventListener('mouseup', () => { touchBlowing = false; });
+canvas.addEventListener('mouseleave', () => { touchBlowing = false; });
+</script>
+</body>
+</html>
