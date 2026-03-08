@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ふうふうトレイン 🚂</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    overflow: hidden;
+    touch-action: none;
+    font-family: 'Rounded Mplus 1c', 'Hiragino Maru Gothic ProN', sans-serif;
+    background: linear-gradient(180deg, #87CEEB 0%, #B0E0FF 60%, #90EE90 60%, #228B22 100%);
+    height: 100vh;
+    width: 100vw;
+  }
+
+  #start-screen {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #FFD700, #FF8C00);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    gap: 20px;
+  }
+
+  #start-screen h1 {
+    font-size: clamp(2rem, 8vw, 4rem);
+    color: white;
+    text-shadow: 3px 3px 0 #cc6600;
+  }
+
+  #start-screen .train-emoji {
+    font-size: clamp(4rem, 15vw, 8rem);
+    animation: bounce 1s ease-in-out infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+  }
+
+  #start-btn {
+    font-size: clamp(1.5rem, 5vw, 2.5rem);
+    padding: 15px 50px;
+    border: none;
+    border-radius: 50px;
+    background: white;
+    color: #FF8C00;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 6px 0 #ccc;
+    transition: transform 0.1s;
+  }
+
+  #start-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 #ccc;
+  }
+
+  #game-canvas {
+    position: fixed;
+    inset: 0;
+  }
+
+  /* 吹いてねインジケーター */
+  #blow-indicator {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+  }
+
+  #blow-indicator .label {
+    font-size: clamp(1.2rem, 4vw, 2rem);
+    color: white;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+    font-weight: bold;
+  }
+
+  #blow-meter {
+    width: clamp(200px, 60vw, 400px);
+    height: 30px;
+    background: rgba(255,255,255,0.5);
+    border-radius: 15px;
+    overflow: hidden;
+    margin-top: 8px;
+    border: 3px solid white;
+  }
+
+  #blow-meter-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #FFD700, #FF4500);
+    border-radius: 12px;
+    transition: width 0.1s;
+  }
+
+  /* 距離メーター */
+  #distance {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    font-size: clamp(1rem, 3vw, 1.5rem);
+    color: white;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+    font-weight: bold;
+    z-index: 10;
+  }
+
+  /* スター表示 */
+  #stars {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    z-index: 10;
+  }
+
+  /* ゴール演出 */
+  #goal-screen {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    gap: 20px;
+  }
+
+  #goal-screen.show {
+    display: flex;
+  }
+
+  #goal-screen h2 {
+    font-size: clamp(2rem, 8vw, 4rem);
+    color: #FFD700;
+    text-shadow: 3px 3px 0 #cc6600;
+    animation: bounce 0.6s ease-in-out infinite;
+  }
+
+  #goal-screen .stars-display {
+    font-size: clamp(3rem, 10vw, 6rem);
+  }
+
+  #retry-btn {
+    font-size: clamp(1.2rem, 4vw, 2rem);
+    padding: 12px 40px;
+    border: none;
+    border-radius: 50px;
+    background: #FFD700;
+    color: #333;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 6px 0 #b8960f;
+  }
+
+  #retry-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 #b8960f;
+  }
+
+  /* 雲 */
+  .cloud {
+    position: fixed;
+    color: white;
+    font-size: 3rem;
+    opacity: 0.8;
+    z-index: 1;
+  }
+</style>
+</head>
+<body>
+
+<!-- スタート画面 -->
+<div id="start-screen">
+  <div class="train-emoji">🚂</div>
+  <h1>ふうふうトレイン</h1>
+  <p style="color:white; font-size:clamp(1rem,3vw,1.5rem);">
+    ふーっ と いきを ふきかけて<br>でんしゃを はしらせよう！
+  </p>
+  <button id="start-btn">スタート！</button>
+</div>
+
+<!-- ゲーム画面 -->
+<canvas id="game-canvas"></canvas>
+
+<div id="stars"></div>
+<div id="distance"></div>
+
+<div id="blow-indicator">
+  <div class="label" id="blow-label">🌬️ ふーっ と ふいてね！</div>
+  <div id="blow-meter">
+    <div id="blow-meter-fill"></div>
+  </div>
+</div>
+
+<!-- ゴール画面 -->
+<div id="goal-screen">
+  <h2 id="goal-message">🎉 ゴール！</h2>
+  <div class="stars-display" id="goal-stars"></div>
+  <button id="retry-btn">もういっかい！</button>
+</div>
+
+<script>
+// ===== 設定 =====
+const GOAL_DISTANCE = 1000;  // ゴールまでの距離（メートル表示）
+const BLOW_THRESHOLD = 0.08; // 息検出の閾値
+const SPEED_MULTIPLIER = 3;  // 息の強さ→速度の倍率
+const STAR_CHECKPOINTS = [300, 600, 1000]; // スター獲得ポイント
+
+// ===== 状態 =====
+let gameStarted = false;
+let distance = 0;
+let speed = 0;
+let trainX = 0;
+let starsCollected = 0;
+let blowLevel = 0;
+let audioContext, analyser, dataArray;
+let animationId;
+
+// ===== DOM =====
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const startScreen = document.getElementById('start-screen');
+const startBtn = document.getElementById('start-btn');
+const blowMeterFill = document.getElementById('blow-meter-fill');
+const blowLabel = document.getElementById('blow-label');
+const distanceEl = document.getElementById('distance');
+const starsEl = document.getElementById('stars');
+const goalScreen = document.getElementById('goal-screen');
+const goalStars = document.getElementById('goal-stars');
+const goalMessage = document.getElementById('goal-message');
+const retryBtn = document.getElementById('retry-btn');
+
+// ===== キャンバスサイズ =====
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ===== 景色オブジェクト =====
+const scenery = [];
+const clouds = [];
+
+function initScenery() {
+  scenery.length = 0;
+  clouds.length = 0;
+
+  // 木を配置
+  for (let i = 0; i < 30; i++) {
+    scenery.push({
+      type: 'tree',
+      x: Math.random() * GOAL_DISTANCE * 8 + 200,
+      size: 0.5 + Math.random() * 0.8,
+    });
+  }
+
+  // 建物を配置
+  for (let i = 0; i < 10; i++) {
+    scenery.push({
+      type: 'building',
+      x: Math.random() * GOAL_DISTANCE * 8 + 500,
+      height: 60 + Math.random() * 80,
+      width: 40 + Math.random() * 30,
+      color: ['#E74C3C', '#3498DB', '#F39C12', '#9B59B6', '#1ABC9C'][Math.floor(Math.random() * 5)],
+    });
+  }
+
+  // 駅を配置（ゴール地点）
+  scenery.push({
+    type: 'station',
+    x: GOAL_DISTANCE * 8 - 100,
+  });
+
+  // 雲
+  for (let i = 0; i < 8; i++) {
+    clouds.push({
+      x: Math.random() * canvas.width,
+      y: 30 + Math.random() * canvas.height * 0.25,
+      speed: 0.2 + Math.random() * 0.5,
+      size: 0.6 + Math.random() * 0.8,
+    });
+  }
+
+  // スターオブジェクト
+  for (const cp of STAR_CHECKPOINTS) {
+    scenery.push({
+      type: 'star',
+      x: cp * 8,
+      collected: false,
+    });
+  }
+}
+
+// ===== 描画 =====
+function drawSky() {
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.6);
+  gradient.addColorStop(0, '#87CEEB');
+  gradient.addColorStop(1, '#B0E0FF');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height * 0.6);
+
+  // 太陽
+  ctx.fillStyle = '#FFD700';
+  ctx.beginPath();
+  ctx.arc(canvas.width - 80, 80, 40, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawGround() {
+  const groundY = canvas.height * 0.6;
+
+  // 草原
+  const gradient = ctx.createLinearGradient(0, groundY, 0, canvas.height);
+  gradient.addColorStop(0, '#90EE90');
+  gradient.addColorStop(0.3, '#228B22');
+  gradient.addColorStop(1, '#1a6b1a');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, groundY, canvas.width, canvas.height * 0.4);
+
+  // 線路
+  const trackY = canvas.height * 0.72;
+  ctx.fillStyle = '#8B7355';
+  ctx.fillRect(0, trackY - 3, canvas.width, 6);
+  ctx.fillStyle = '#A0A0A0';
+  ctx.fillRect(0, trackY - 1, canvas.width, 2);
+
+  // 枕木
+  ctx.fillStyle = '#654321';
+  for (let i = 0; i < canvas.width; i += 30) {
+    const offsetX = (i - (distance * 8) % 30 + 30) % 30 + (i - 30);
+    if (offsetX >= -10 && offsetX <= canvas.width + 10) {
+      ctx.fillRect(i - (distance * 8 % 30), trackY - 8, 4, 16);
+    }
+  }
+}
+
+function drawClouds() {
+  for (const cloud of clouds) {
+    const cx = cloud.x;
+    const cy = cloud.y;
+    const s = cloud.size;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 25 * s, 0, Math.PI * 2);
+    ctx.arc(cx + 25 * s, cy - 5 * s, 20 * s, 0, Math.PI * 2);
+    ctx.arc(cx - 20 * s, cy + 2 * s, 18 * s, 0, Math.PI * 2);
+    ctx.arc(cx + 10 * s, cy + 5 * s, 15 * s, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 雲をゆっくり動かす
+    cloud.x -= cloud.speed;
+    if (cloud.x < -60) cloud.x = canvas.width + 60;
+  }
+}
+
+function drawScenery() {
+  const cameraX = distance * 8;
+  const groundY = canvas.height * 0.6;
+  const trackY = canvas.height * 0.72;
+
+  for (const obj of scenery) {
+    const screenX = obj.x - cameraX + canvas.width * 0.25;
+
+    // 画面外ならスキップ
+    if (screenX < -200 || screenX > canvas.width + 200) continue;
+
+    if (obj.type === 'tree') {
+      const s = obj.size;
+      // 幹
+      ctx.fillStyle = '#8B4513';
+      ctx.fillRect(screenX - 5 * s, groundY - 30 * s, 10 * s, 30 * s);
+      // 葉
+      ctx.fillStyle = '#228B22';
+      ctx.beginPath();
+      ctx.arc(screenX, groundY - 40 * s, 20 * s, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#2E8B2E';
+      ctx.beginPath();
+      ctx.arc(screenX - 8 * s, groundY - 35 * s, 15 * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (obj.type === 'building') {
+      ctx.fillStyle = obj.color;
+      ctx.fillRect(screenX, groundY - obj.height, obj.width, obj.height);
+      // 窓
+      ctx.fillStyle = '#FFFACD';
+      for (let r = 0; r < Math.floor(obj.height / 25); r++) {
+        for (let c = 0; c < Math.floor(obj.width / 15); c++) {
+          ctx.fillRect(screenX + 5 + c * 15, groundY - obj.height + 8 + r * 25, 8, 12);
+        }
+      }
+      // 屋根
+      ctx.fillStyle = '#555';
+      ctx.fillRect(screenX - 3, groundY - obj.height - 5, obj.width + 6, 8);
+    }
+
+    if (obj.type === 'station') {
+      // 駅舎
+      ctx.fillStyle = '#DEB887';
+      ctx.fillRect(screenX, groundY - 60, 100, 60);
+      ctx.fillStyle = '#8B0000';
+      // 三角屋根
+      ctx.beginPath();
+      ctx.moveTo(screenX - 10, groundY - 60);
+      ctx.lineTo(screenX + 50, groundY - 90);
+      ctx.lineTo(screenX + 110, groundY - 60);
+      ctx.fill();
+      // 看板
+      ctx.fillStyle = 'white';
+      ctx.fillRect(screenX + 15, groundY - 50, 70, 20);
+      ctx.fillStyle = '#333';
+      ctx.font = `bold ${14}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('ゴール駅', screenX + 50, groundY - 35);
+      // 🚩
+      ctx.font = '30px serif';
+      ctx.fillText('🚩', screenX + 50, groundY - 92);
+    }
+
+    if (obj.type === 'star' && !obj.collected) {
+      // キラキラスター
+      const pulse = Math.sin(Date.now() / 200) * 5;
+      ctx.font = `${35 + pulse}px serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('⭐', screenX, trackY - 40);
+
+      // 当たり判定
+      const trainScreenX = canvas.width * 0.25;
+      if (Math.abs(screenX - trainScreenX) < 40) {
+        obj.collected = true;
+        starsCollected++;
+        updateStars();
+      }
+    }
+  }
+}
+
+function drawTrain() {
+  const trackY = canvas.height * 0.72;
+  const tx = canvas.width * 0.25;
+  const ty = trackY - 28;
+
+  // 車体の揺れ
+  const shake = speed > 0 ? Math.sin(Date.now() / 50) * 1.5 : 0;
+
+  ctx.save();
+  ctx.translate(tx, ty + shake);
+
+  // 煙（走ってる時）
+  if (speed > 0.5) {
+    for (let i = 0; i < 4; i++) {
+      const smokeX = -20 - i * 15 - Math.random() * 10;
+      const smokeY = -30 - i * 12 - Math.random() * 5;
+      const smokeSize = 8 + i * 5 + Math.random() * 3;
+      ctx.fillStyle = `rgba(200, 200, 200, ${0.7 - i * 0.15})`;
+      ctx.beginPath();
+      ctx.arc(smokeX, smokeY, smokeSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 機関車本体
+  ctx.fillStyle = '#E74C3C';
+  ctx.fillRect(-30, -22, 70, 30);
+
+  // 運転台
+  ctx.fillStyle = '#C0392B';
+  ctx.fillRect(25, -35, 20, 15);
+
+  // 煙突
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-15, -35, 12, 15);
+
+  // 窓
+  ctx.fillStyle = '#AED6F1';
+  ctx.fillRect(28, -32, 14, 10);
+
+  // 車輪
+  ctx.fillStyle = '#333';
+  const wheelRotation = (distance * 8) % (Math.PI * 2);
+  for (const wx of [-15, 10, 30]) {
+    ctx.beginPath();
+    ctx.arc(wx, 12, 9, 0, Math.PI * 2);
+    ctx.fill();
+    // 車輪のスポーク
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(wx + Math.cos(wheelRotation) * 7, 12 + Math.sin(wheelRotation) * 7);
+    ctx.lineTo(wx - Math.cos(wheelRotation) * 7, 12 - Math.sin(wheelRotation) * 7);
+    ctx.stroke();
+  }
+
+  // 顔（かわいい）
+  // 目
+  ctx.fillStyle = 'white';
+  ctx.beginPath();
+  ctx.arc(35, -15, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.arc(36, -14, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 口（速度で変化）
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  if (speed > 1) {
+    // 笑顔
+    ctx.beginPath();
+    ctx.arc(35, -8, 5, 0, Math.PI);
+    ctx.stroke();
+  } else {
+    // 普通の口
+    ctx.beginPath();
+    ctx.moveTo(32, -7);
+    ctx.lineTo(38, -7);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// ===== UI更新 =====
+function updateStars() {
+  let s = '';
+  for (let i = 0; i < 3; i++) {
+    s += i < starsCollected ? '⭐' : '☆';
+  }
+  starsEl.textContent = s;
+}
+
+function updateDistance() {
+  distanceEl.textContent = `${Math.floor(distance)} / ${GOAL_DISTANCE}m`;
+}
+
+// ===== マイク入力 =====
+async function setupMicrophone() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioContext.createMediaStreamSource(stream);
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    return true;
+  } catch (e) {
+    console.error('マイクエラー:', e);
+    blowLabel.textContent = '⚠️ マイクを ゆるしてね';
+    return false;
+  }
+}
+
+function getBlowLevel() {
+  if (!analyser) return 0;
+  analyser.getByteTimeDomainData(dataArray);
+
+  let sum = 0;
+  for (let i = 0; i < dataArray.length; i++) {
+    const v = (dataArray[i] - 128) / 128;
+    sum += v * v;
+  }
+  const rms = Math.sqrt(sum / dataArray.length);
+  return rms;
+}
+
+// ===== ゲームループ =====
+function gameLoop() {
+  if (!gameStarted) return;
+
+  // 息の検出
+  blowLevel = getBlowLevel();
+  const blowing = blowLevel > BLOW_THRESHOLD;
+
+  // 速度制御
+  if (blowing) {
+    speed = Math.min(speed + 0.15, blowLevel * SPEED_MULTIPLIER * 15);
+    blowLabel.textContent = '🌬️💨 すごい！はしってる！';
+  } else {
+    speed = Math.max(speed - 0.08, 0);
+    if (speed < 0.1) {
+      blowLabel.textContent = '🌬️ ふーっ と ふいてね！';
+    }
+  }
+
+  // 距離更新
+  distance += speed * 0.05;
+  if (distance > GOAL_DISTANCE) distance = GOAL_DISTANCE;
+
+  // メーター更新
+  const meterPct = Math.min(blowLevel / 0.3 * 100, 100);
+  blowMeterFill.style.width = meterPct + '%';
+
+  // 描画
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawSky();
+  drawClouds();
+  drawScenery();
+  drawGround();
+  drawTrain();
+
+  updateDistance();
+
+  // ゴール判定
+  if (distance >= GOAL_DISTANCE) {
+    showGoal();
+    return;
+  }
+
+  animationId = requestAnimationFrame(gameLoop);
+}
+
+function showGoal() {
+  gameStarted = false;
+
+  // 全スター回収判定
+  let msg = '';
+  if (starsCollected === 3) {
+    msg = '🎉 パーフェクト！！';
+  } else if (starsCollected >= 1) {
+    msg = '🎉 ゴール！やったね！';
+  } else {
+    msg = '🎉 ゴール！';
+  }
+
+  goalMessage.textContent = msg;
+
+  let starText = '';
+  for (let i = 0; i < 3; i++) {
+    starText += i < starsCollected ? '⭐' : '☆';
+  }
+  goalStars.textContent = starText;
+  goalScreen.classList.add('show');
+}
+
+function resetGame() {
+  distance = 0;
+  speed = 0;
+  starsCollected = 0;
+  blowLevel = 0;
+  updateStars();
+  updateDistance();
+  initScenery();
+  goalScreen.classList.remove('show');
+  gameStarted = true;
+  gameLoop();
+}
+
+// ===== イベント =====
+startBtn.addEventListener('click', async () => {
+  const micOk = await setupMicrophone();
+  if (!micOk) return;
+
+  startScreen.style.display = 'none';
+  initScenery();
+  updateStars();
+  updateDistance();
+  gameStarted = true;
+  gameLoop();
+});
+
+retryBtn.addEventListener('click', () => {
+  resetGame();
+});
+
+// iOS Safari対応: AudioContext resume
+document.addEventListener('touchstart', () => {
+  if (audioContext && audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+}, { once: true });
+</script>
+</body>
+</html>
