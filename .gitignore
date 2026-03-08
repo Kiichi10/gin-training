@@ -1,0 +1,7 @@
+cert.pem
+key.pem
+ca-cert.pem
+ca-key.pem
+*.csr
+*.srl
+*.cnf
