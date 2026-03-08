@@ -621,7 +621,7 @@ function drawTrain(){
   ctx.save();
   ctx.translate(tx,trackY-16+shake);
 
-  // Smoke
+  // Smoke (behind the train, so draw on left side)
   if(trainSpeed>10){
     for(let i=0;i<3;i++){
       const sx2=-30-i*10-Math.random()*8;
@@ -632,11 +632,14 @@ function drawTrain(){
     }
   }
 
-  // Train emoji (large)
+  // Train emoji (large) — flip horizontally so it faces right (direction of travel)
+  ctx.save();
+  ctx.scale(-1,1);
   ctx.font='45px serif';
   ctx.textAlign='center';
   ctx.textBaseline='middle';
   ctx.fillText(selectedTrain.emoji,0,0);
+  ctx.restore();
 
   ctx.restore();
 }
